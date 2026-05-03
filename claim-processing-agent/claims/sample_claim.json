@@ -1,0 +1,9 @@
+{
+  "claim_number": "CLAIM-00001",
+  "policy_number": "PN-1",
+  "claimant_name": "Ema Johnson",
+  "date_of_loss": "2022-01-21",
+  "loss_description": "The car was rear ended by a truck when parked at the office. The rear bumper was destroyed in the process.",
+  "estimated_repair_cost": 550.0,
+  "vehicle_details": "2022 Honda City"
+}

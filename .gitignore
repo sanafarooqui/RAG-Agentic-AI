@@ -20,5 +20,8 @@ chroma_db/
 # macOS
 .DS_Store
 
+# Pytest
+.pytest_cache/
+
 # Jupyter
 .ipynb_checkpoints/

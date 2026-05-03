@@ -6,10 +6,11 @@ A collection of projects exploring Retrieval-Augmented Generation (RAG) and Agen
 
 - **Language**: Python 3.11+
 - **LLM Orchestration**: LangChain, LangGraph
-- **Agent Frameworks**: smolagents
+- **Agent Frameworks**: SmolAgents
 - **LLM Providers**: OpenAI (gpt-4o-mini), compatible with any OpenAI-API-compatible endpoint
-- **Vector Store**: ChromaDB
+- **Vector Store**: ChromaDB (`langchain-chroma`)
 - **Embeddings**: OpenAI text-embedding-ada-002
+- **Validation**: Pydantic v2
 
 ## Projects
 
@@ -22,52 +23,86 @@ Includes an LLM-as-a-judge evaluation module that scores responses on **grounded
 | File | Purpose |
 |---|---|
 | `main.py` | Ingest pipeline + query interface |
-| `evaluate.py` | LLM-as-a-judge evaluation (groundedness & relevance) |
+| `evaluate.py` | LLM-as-a-judge evaluation (groundedness & relevance, 1–5) |
 
 **Quickstart**
 
 ```bash
-# Activate the shared venv
 source .venv/bin/activate
-
-# 1. Ingest PDFs into the vector store (run once)
 cd RAG-research-papers-assistant
-python main.py ingest
 
-# 2. Query
+python main.py ingest                                    # run once
 python main.py "What are the key challenges in agentic AI?"
-
-# 3. Evaluate RAG quality
-python evaluate.py
+python evaluate.py                                       # evaluate RAG quality
 ```
 
-**Environment** — create `RAG-research-papers-assistant/.env`:
+---
+
+### [`claim-processing-agent`](claim-processing-agent/)
+
+An autonomous insurance claim processing agent. A `ToolCallingAgent` from SmolAgents orchestrates a 5-step pipeline — validating coverage, retrieving relevant policy sections via RAG, and producing a structured claim decision.
+
+Tools share state via a module-level dict so the LLM never needs to pass structured data between tool calls.
+
+| File | Purpose |
+|---|---|
+| `models.py` | Pydantic models: `ClaimsInfo`, `PolicyRecommendation`, `ClaimDecision` |
+| `rag.py` | Policy PDF ingestion + ChromaDB retrieval |
+| `tools.py` | 5 SmolAgent tools + shared `_state` pipeline |
+| `prompts.py` | System and planning prompts |
+| `main.py` | CLI entry point |
+| `tests/` | 50 pytest tests (tools + main) |
+
+**Workflow:** `importClaims → validateClaims → getRelevantPolicyInfo → processClaim → finalDecision`
+
+**Quickstart**
+
+```bash
+source .venv/bin/activate
+cd claim-processing-agent
+
+python main.py claims/sample_claim.json    # ingests policy.pdf on first run
 ```
-OPENAI_API_KEY=your-key
-OPENAI_API_BASE=https://api.openai.com/v1
-```
+
+---
 
 ## Repository Structure
 
 ```
 RAG-Agentic-AI/
-├── .venv/                          # Shared virtual environment
+├── .venv/                              # Shared virtual environment
 ├── RAG-research-papers-assistant/
-│   ├── main.py                     # RAG pipeline
-│   ├── evaluate.py                 # LLM-as-a-judge evaluation
+│   ├── main.py
+│   ├── evaluate.py
 │   ├── agentic_ai_research_papers.zip
-│   └── .env                        # API keys (not committed)
-└── README.md
+│   └── .env
+├── claim-processing-agent/
+│   ├── policy_docs/policy.pdf
+│   ├── dataset/coverage_data.csv
+│   ├── claims/sample_claim.json
+│   ├── models.py
+│   ├── rag.py
+│   ├── tools.py
+│   ├── prompts.py
+│   ├── main.py
+│   └── tests/
+└── .gitignore
 ```
 
 ## Setup
 
 ```bash
-# Clone and create the shared venv
 git clone <repo-url>
 cd RAG-Agentic-AI
 python3 -m venv .venv
 source .venv/bin/activate
 pip install langchain langchain-community langchain-chroma langchain-openai \
-            langchain-text-splitters chromadb pypdf tiktoken pandas python-dotenv
+            langchain-text-splitters chromadb pypdf tiktoken pandas \
+            python-dotenv smolagents tenacity pydantic pytest
+```
+
+Each project needs its own `.env` — keys must be **unquoted**:
+```
+OPENAI_API_KEY=your-key-here
+OPENAI_API_BASE=https://api.openai.com/v1
 ```
