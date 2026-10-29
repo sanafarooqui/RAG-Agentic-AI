@@ -23,6 +23,8 @@ Never create a project-level `.venv` — use the root one for all projects.
 .venv/bin/pip install <package>
 ```
 
+Installing some packages (e.g. `tavily`, `arxiv`) can bump `opentelemetry-api` past `opentelemetry-sdk` and break `import chromadb`. Fix: `.venv/bin/pip install -U opentelemetry-sdk opentelemetry-semantic-conventions`.
+
 ## Environment variables
 
 Each project has its own `.env` (not committed). Keys must be **unquoted**:
@@ -85,6 +87,10 @@ LLM-as-a-judge uses `judge.with_structured_output(PydanticModel)` for typed scor
 - `autouse` fixture calls `reset_state()` before and after every test.
 - Always mock LLM calls (`_call_process_llm`, `_call_decision_llm`, `_generate_queries`) and `get_retriever` — tests never hit real APIs.
 - Patch `tools.DATASET_PATH` per-test using a `tmp_path` CSV fixture.
+
+### Advanced-RAG-research-assistant
+
+Project-specific notes are in `Advanced-RAG-research-assistant/CLAUDE.md`. This project uses Qdrant instead of Chroma, so the Chroma conventions above do not apply to it.
 
 ## Adding a new project
 

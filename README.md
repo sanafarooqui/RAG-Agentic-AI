@@ -66,6 +66,14 @@ python main.py claims/sample_claim.json    # ingests policy.pdf on first run
 
 ---
 
+### [`Advanced-RAG-research-assistant`](Advanced-RAG-research-assistant/)
+
+An agentic RAG chatbot for research papers (FastAPI + LangGraph backend, React UI, Qdrant, Redis) with routing, relevance grading, web-search fallback and source-tagged citations.
+
+See the [project README](Advanced-RAG-research-assistant/Readme.md) for setup and details.
+
+---
+
 ## Repository Structure
 
 ```
@@ -86,6 +94,7 @@ RAG-Agentic-AI/
 │   ├── prompts.py
 │   ├── main.py
 │   └── tests/
+├── Advanced-RAG-research-assistant/    # see its own README
 └── .gitignore
 ```
 
