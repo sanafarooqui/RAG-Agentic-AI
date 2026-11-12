@@ -20,7 +20,7 @@ async def _doc_scope() -> tuple[list[str], list[str]]:
     return [r.doc_id for r in records], [r.title for r in records]
 
 
-async def _run(question: str, history: list[dict], with_docs: bool) -> dict:
+async def _run(question: str, history: list[dict], with_docs: bool, context: list[str] | None) -> dict:
     doc_ids, titles = await _doc_scope() if with_docs else ([], [])
     state = {
         "question": question,
@@ -35,10 +35,16 @@ async def _run(question: str, history: list[dict], with_docs: bool) -> dict:
         input=question,
         output=result["answer"],
         retrieval_context=[d.page_content for d in result.get("documents", [])],
+        context=context,
     )
     return result
 
 
-def run_rag(question: str, history: list[dict] | None = None, with_docs: bool = True) -> dict:
-    """Run one question through the real graph, traced; the paper is the selected document."""
-    return _LOOP.run_until_complete(_run(question, history or [], with_docs))
+def run_rag(
+    question: str, history: list[dict] | None = None, with_docs: bool = True, context: list[str] | None = None
+) -> dict:
+    """Run one question through the real graph, traced; the paper is the selected document.
+
+    `context` is the golden's source text, needed only by HallucinationMetric.
+    """
+    return _LOOP.run_until_complete(_run(question, history or [], with_docs, context))

@@ -1,23 +1,41 @@
+import os
+from collections import defaultdict
+
 import pytest
 
 from deepeval import assert_test
 from deepeval.dataset import EvaluationDataset, Golden
 
 import app
-from metrics import PIPELINE_METRICS
+from metrics import metrics_for
 
-synthetic = EvaluationDataset()
-synthetic.add_goldens_from_json_file(file_path="tests/evals/dataset_synthetic.json")
-manual = EvaluationDataset()
-manual.add_goldens_from_json_file(file_path="tests/evals/dataset_manual.json")
+dataset = EvaluationDataset()
+dataset.add_goldens_from_json_file(file_path="tests/evals/dataset_golden.json")
 
-# 10 synthetic + 5 hand-written factual goldens (the out-of-scope manual ones are covered in test_operations)
-N_SYNTHETIC = 10
-MANUAL_INDICES = [0, 1, 3, 4, 5]
-GOLDENS = synthetic.goldens[:N_SYNTHETIC] + [manual.goldens[i] for i in MANUAL_INDICES]
+# EVAL_MAX_GOLDENS=0 runs all of them. A subset is taken round-robin across categories in file order, so a
+# small run still covers every question type (factual, computation, multi-hop, abstention, false premise, ...).
+MAX_GOLDENS = int(os.getenv("EVAL_MAX_GOLDENS", "15"))
 
 
-@pytest.mark.parametrize("golden", GOLDENS, ids=lambda g: g.input[:60])
+def select(goldens: list[Golden], limit: int) -> list[Golden]:
+    if limit <= 0 or limit >= len(goldens):
+        return goldens
+    by_category = defaultdict(list)
+    for g in goldens:
+        by_category[g.additional_metadata["category"]].append(g)
+    picked: list[Golden] = []
+    queues = list(by_category.values())
+    while len(picked) < limit:
+        for q in queues:
+            if q and len(picked) < limit:
+                picked.append(q.pop(0))
+    return picked
+
+
+GOLDENS = select(dataset.goldens, MAX_GOLDENS)
+
+
+@pytest.mark.parametrize("golden", GOLDENS, ids=lambda g: g.additional_metadata["id"])
 def test_rag_pipeline(golden: Golden):
-    app.run_rag(golden.input)
-    assert_test(golden=golden, metrics=PIPELINE_METRICS)
+    app.run_rag(golden.input, context=golden.context)
+    assert_test(golden=golden, metrics=metrics_for(golden))

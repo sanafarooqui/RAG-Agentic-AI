@@ -13,4 +13,6 @@ The `deepeval` skill is installed in `.agents/skills/deepeval` (pinned in `skill
 
 ## Status
 
-Round 1 (baseline, no app changes): 17 of 29 failed. Weakest: Contextual Relevancy 0.41, Correctness 0.57, PII Leakage 0.25, three ops checks (routing, latency, citations). Next: reduce retrieval noise and fix routing, then re-run as round 2. Details in `CLAUDE.md`.
+Goldens: `tests/evals/dataset_golden.json` (54, merged by `build_golden_set.py`; see `Readme.md`). Round 1 (baseline, no app changes): 17 of 29 failed. Weakest: Contextual Relevancy 0.41, Correctness 0.57, PII Leakage 0.25, three ops checks (routing, latency, citations). Round 2 (retrieve 20 / rerank 6, neighbour expansion, sentence pruning, KB-first routing, labelled web fallback) is evaluated: see `tests/evals/round-2.md` (Correctness up, Contextual Relevancy 0.38 still failing, ops 7/7). Run evals under `caffeinate -i`. Details in `CLAUDE.md`.
+
+PII masking (`backend/pii.py`, graph node `mask`, API boundary) is in; `tests/test_pii.py` covers it and the PII evals pass. See `CLAUDE.md` for what it does and does not cover.

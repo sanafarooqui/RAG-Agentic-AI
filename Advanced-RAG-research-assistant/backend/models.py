@@ -26,6 +26,15 @@ class RerankResult(BaseModel):
     ranked_indices: list[int] = Field(description="Passage indices ordered from most to least useful")
 
 
+class PassageSelection(BaseModel):
+    index: int = Field(description="Index of the passage")
+    sentences: list[int] = Field(description="Numbers of the sentences in that passage that help answer the question")
+
+
+class PrunedPassages(BaseModel):
+    passages: list[PassageSelection]
+
+
 class RewrittenQuery(BaseModel):
     query: str = Field(description="A better search query for the vector store")
 

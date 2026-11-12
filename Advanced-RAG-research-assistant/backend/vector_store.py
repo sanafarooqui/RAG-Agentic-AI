@@ -76,6 +76,17 @@ def delete_document(doc_id: str) -> None:
     get_client().delete(QDRANT_COLLECTION, points_selector=models.FilterSelector(filter=_doc_filter([doc_id])))
 
 
+def get_chunks(doc_id: str, indexes: list[int]) -> list[Document]:
+    # Point ids are deterministic, so neighbours are fetched by id; no payload index on chunk_index is needed
+    points = get_client().retrieve(
+        QDRANT_COLLECTION, ids=[_point_id(doc_id, i) for i in indexes if i >= 0], with_payload=True
+    )
+    return [
+        Document(page_content=p.payload["page_content"], metadata=p.payload["metadata"])
+        for p in sorted(points, key=lambda p: p.payload["metadata"]["chunk_index"])
+    ]
+
+
 async def search(query: str, doc_ids: list[str], k: int = RETRIEVE_K) -> list[Document]:
     if not doc_ids:
         return []

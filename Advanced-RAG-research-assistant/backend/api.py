@@ -8,7 +8,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sse_starlette.sse import EventSourceResponse
 
-from backend import paper_loader, sessions
+from backend import paper_loader, pii, sessions
 from backend.config import ALLOWED_EXTENSIONS, TAVILY_ENABLED, UPLOAD_DIR
 from backend.models import (
     ArxivImportRequest,
@@ -30,6 +30,8 @@ NODE_STATUS = {
     "grade": "Checking relevance",
     "rewrite": "Rewriting query",
     "rerank": "Reranking passages",
+    "expand": "Adding neighbouring passages",
+    "prune": "Selecting key passages",
     "web_search": "Searching the web",
     "generate": "Writing answer",
     "general": "Writing answer",
@@ -159,11 +161,14 @@ async def chat(sid: str, body: ChatRequest):
     if body.force_route == "web_search" and not TAVILY_ENABLED:
         raise HTTPException(400, "Web search is not configured (missing TAVILY_API_KEY)")
 
+    # Masked here as well as in the graph's first node, so Redis, LangSmith traces and the chat title
+    # never hold the raw text; the user sees the masked message in their history
+    message_text = pii.mask_text(body.message)
     history = await sessions.get_history(sid)
     records = await sessions.get_documents(session.doc_ids)
 
     state = {
-        "question": body.message,
+        "question": message_text,
         "history": history,
         "doc_ids": session.doc_ids,
         "doc_titles": [r.title for r in records],
@@ -198,9 +203,9 @@ async def chat(sid: str, body: ChatRequest):
         current = await sessions.get_session(sid)
         title = current.title if current else session.title
         if current:
-            await sessions.add_messages(sid, Message(role="user", content=body.message), message)
+            await sessions.add_messages(sid, Message(role="user", content=message_text), message)
             if current.title == "New chat":
-                current.title = title = body.message[:60]
+                current.title = title = message_text[:60]
             await sessions.save_session(current)
         yield _event("done", {"message": message.model_dump(mode="json"), "title": title})
 
