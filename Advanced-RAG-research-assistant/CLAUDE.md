@@ -65,3 +65,30 @@ Rule: the grounded-answer prompt gets only the numbered context and the standalo
 - `arxiv` 4.x has no `Result.download_pdf`; PDFs are downloaded from `result.pdf_url` with httpx.
 - `docker compose up` fails with "Cannot connect to the Docker daemon" unless Docker Desktop is running (`open -a Docker`); Homebrew Redis (`brew services start redis`) works without it.
 - Inspect Redis with `redis-cli --scan --pattern '*'`, or `redis-cli monitor` to watch commands live. Pipeline-level tracing is in LangSmith (`LANGSMITH_*` in `.env`).
+
+## Offline evaluation (DeepEval)
+
+Suite is in `tests/evals/` (layout and run command in `README.md`). Spec is Phase 2 of `Intructions.md`. Intake answers: judge `gpt-4o`, synthetic + hand-written goldens, DeepEval LangChain/LangGraph `CallbackHandler` tracing, results local only (no Confident AI), one round then report.
+
+- Run `deepeval test run`, not raw `pytest`, and read per-metric reasons from the saved JSON (`tests/evals/summarize.py -v`). Never lower thresholds or drop failing goldens to make a round pass.
+- Export `SSL_CERT_FILE` (certifi) in the shell before running. DeepEval imports aiohttp before `backend.config` sets it, so Tavily fails certificate verification otherwise. `tests/evals/judge.py` also forces `LANGSMITH_TRACING=false` and sets `OPENAI_BASE_URL` from `OPENAI_API_BASE_URL`.
+- The key behind `OPENAI_API_BASE_URL` only allows `gpt-4o` and `gpt-4o-mini`. Other models in `/models` (e.g. `gpt-4.1`) return 400 "not allowed". The judge is `gpt-4o` (`EVAL_JUDGE_MODEL` overrides).
+- `tests/evals/app.py` runs every graph call on one persistent event loop, because `backend.redis_client` caches a loop-bound async Redis client. It sets the trace's `retrieval_context` to the documents the generator saw (after rerank, and they may be web results after a fallback).
+- `deepeval generate`: `--file-name` must not contain a period (the skill's `.dataset` example fails after generating). The defaults give only 6 goldens; `--max-contexts-per-document 20 --chunk-size 400 --chunk-overlap 40 --context-quality-threshold 0.4` gave 40. Generated goldens include hypothetical or ill-posed questions ("what if training length doubled"); do not hand-edit the file, filter or regenerate instead.
+- `pytest -k` expressions cannot contain spaces. The pipeline test ids are the first 60 characters of the question.
+- The pipeline test uses 10 synthetic + 5 hand-written goldens (`N_SYNTHETIC`, `MANUAL_INDICES` in `test_rag_pipeline.py`). Use at most `--num-processes 3`: with 5 workers the proxy returned a 401 and a timeout once, and GEval returned invalid JSON once, each leaving one metric unscored. This also inflates the ops latency test; re-measure latency alone.
+- The evals read the user's Redis and Qdrant (the paper must already be ingested, title `1706.03762v7`) and hit Tavily. They create no sessions or points.
+
+### Round 1 baseline (before any app change)
+
+17 of 29 failed. Contextual Precision 0.92, Recall 0.94, **Relevancy 0.41 (3/15)**, Faithfulness 1.00, Answer Relevancy 0.82, **Correctness 0.57 (6/15)**, Completeness 0.78, Toxicity and Bias 1.00, **PII Leakage 0.25 (1/2)**, prompt-injection resistance 0.97, ops 4 pass / 3 fail.
+
+Causes, in order of impact:
+1. Retrieved chunks are mostly unrelated text around the one relevant sentence (e.g. encoder/decoder layer count scored relevancy 0.09; faithfulness is still 1.00, so the generator is fine). Fix: neighbour expansion, retrieve about 20 then rerank to 5-6, sentence-level pruning. A larger chunk size would likely make this worse.
+2. `route_node` sent "How many attention heads does the base Transformer use?" to `web_search` with documents selected (0 retrieval attempts); the same question had earlier returned "passages do not specify". Fix: with documents selected, default to `knowledge_base` and go to the web only after the grader fails.
+3. Correctness is dragged down by ill-posed synthetic goldens; the hand-written ones mostly passed (0.52 to 0.90).
+4. The app echoed a user's name, email, phone and SSN back, and has no PII masking before the LLM or LangSmith. Fix: a masking step at the start of the graph.
+5. Ops latency p95 29.6s under 5 workers (8.4s solo, budget 15s); one answer had no inline `[n]` citation; one answer was grounded on web sources.
+6. Not covered by a test yet: `web_search` raises when Tavily fails, which aborts the whole request instead of reaching `fallback_node`.
+
+Round 2 plan: items 1 and 2, then re-run. Nothing in `backend/` has changed since the round 1 run.
